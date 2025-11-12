@@ -78,11 +78,18 @@ Goal – extend the base app into **dev / staging / prod** environments using th
    ```bash
    kubectl apply -f 1-multi-env/apps/root-app.yaml
    ```
-2. **Verify in UI**
+2. **Verify deployment**
+   ```bash
+   kubectl -n echo-dev get deploy,svc,pods
+   kubectl -n echo-dev port-forward svc/echo 8081:80
+   curl http://localhost:8081/
+   # → "hello from dev"
+   ```   
+3. **Verify in UI**
    * Root app appears under **Applications**
    * Sub-apps (`echo-dev`, `echo-staging`, `echo-prod`) created automatically
    * Each has its own namespace and message version
-3. **Test**
+4. **Test**
    * Change only `values-staging.yaml` → commit → Argo syncs *staging* only
    * Delete one sub-app manually → root recreates it (self-healing)
 
