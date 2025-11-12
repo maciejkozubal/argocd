@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:   
+    name: echo
+    labels: {app: echo}
+spec:
+    replicas: {{ .Values.replicas }}
+    selector: 
+        matchLabels:
+            app: echo
+    template:
+        metadata: 
+            labels:     
+                app: echo
+        spec:
+            containers:
+                - name: echo
+                  image: hashicorp/http-echo:1.0.0
+                  args: ["-text={{ .Values.message }}"]
+                  ports: [{containerPort: 5678}]
+                  resources: 
+                    requests: 
+                        cpu: {{ .Values.resources.requests.cpu }}
+                        memory: {{ .Values.resources.requests.memory }}
+                    limits: 
+                        cpu: {{ .Values.resources.limits.cpu }}
+                        memory: {{ .Values.resources.limits.memory }}
