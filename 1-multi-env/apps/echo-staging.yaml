@@ -9,7 +9,7 @@ spec:
     repoURL: https://github.com/maciejkozubal/argocd
     targetRevision: main
     path: 1-multi-env/workloads/echo
-    helm: {valueFiles: [values-staging.yml]}
+    helm: {valueFiles: [values-staging.yaml]}
   destination:
     server: https://kubernetes.default.svc
     namespace: echo-staging

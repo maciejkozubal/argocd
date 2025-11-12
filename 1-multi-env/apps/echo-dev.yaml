@@ -9,7 +9,7 @@ spec:
     repoURL: https://github.com/maciejkozubal/argocd
     targetRevision: main
     path: 1-multi-env/workloads/echo
-    helm: {valueFiles: [values-dev.yml]}
+    helm: {valueFiles: [values-dev.yaml]}
   destination:
     server: https://kubernetes.default.svc
     namespace: echo-dev
