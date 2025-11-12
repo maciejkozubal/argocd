@@ -17,6 +17,6 @@ spec:
       containers:
         - name: echo
           image: hashicorp/http-echo:1.0.0
-          args: ["-text=hello from dev"]
+          args: ["-text=hello from dev v2!"]
           ports:
             - containerPort: 5678
