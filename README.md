@@ -64,7 +64,7 @@ Step-by-step GitOps lab for experimenting with Argo CD
 
 7. **Cleanup**
     ```bash
-    kubectl delete app echo-dev -n argocd
+      kubectl delete app echo-dev -n argocd
     kubectl delete ns echo-dev
     ```
 
