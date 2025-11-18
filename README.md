@@ -95,3 +95,28 @@ Goal – extend the base app into **dev / staging / prod** environments using th
 
 ---
 
+## Stage 2 – Sync Automation & Projects
+
+1. **Add AppProject (`apps`)**
+
+   * defines allowed repos, allowed namespaces (`echo-*`), allowed resource kinds
+   * optional RBAC role definitions for future users/teams
+
+2. **Update all apps to use the project**
+
+   ```
+   project: apps
+   ```
+
+   * makes every child app inherit the project’s policies
+
+3. **Root app gains extra sync options**
+
+   * `CreateNamespace=true`
+   * `ApplyOutOfSyncOnly=true`
+
+4. **Behaviour changes**
+
+   * consistent auto-sync + prune + self-heal across all environments
+   * safety boundaries prevent deploying outside `echo-*` or from other repos
+   * no accidental cluster-wide resources

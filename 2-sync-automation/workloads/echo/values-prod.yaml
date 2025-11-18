@@ -1,0 +1,5 @@
+replicas: 2
+message: "hello from prod"
+resources:
+  requests: {cpu: "100m", memory: "128Mi"}
+  limits:   {cpu: "300m", memory: "256Mi"}
