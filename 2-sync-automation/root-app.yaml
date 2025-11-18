@@ -4,7 +4,7 @@ metadata:
   name: root
   namespace: argocd
 spec:
-  project: apps
+  project: default
   source:
     repoURL: https://github.com/maciejkozubal/argocd.git
     targetRevision: main
