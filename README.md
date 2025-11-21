@@ -4,25 +4,32 @@ Step-by-step GitOps lab for experimenting with Argo CD
 
 ## Goal
 
-| Stage | Topic                | Concept            |
-| ----- | -------------------- | ------------------ |
-| 0     | Base install         | GitOps loop        |
-| 1     | Multi-env            | App-of-apps        |
-| 2     | Sync automation      | Self-healing       |
-| 3     | Access               | RBAC & SSO         |
-| 4     | Multi-cluster        | Cluster management |
-| 5     | Observability        | Drift & metrics    |
-| 6     | Progressive delivery | Safe rollouts      |
+| Stage | Topic                    | Concept                   |
+| ----- | ------------------------ | ------------------------- |
+| 0     | Base install             | GitOps loop               |
+| 1     | Multi-env                | App-of-apps               |
+| 2     | Sync automation & Projects | Self-healing + boundaries |
+| 3     | Helm vs Kustomize        | Templates vs overlays     |
+| 4     | PR workflow & Rollbacks  | Promotion via Git         |
+| 5     | Access                   | RBAC & SSO                |
+| 6     | Multi-cluster            | Cluster management        |
+| 7     | Observability            | Drift & metrics           |
+| 8     | Image automation         | Auto-tag updates in Git   |
+| 9     | Progressive delivery     | Argo Rollouts             |
 
 ---
 
 ## Stage 0 – Base (GitOps Loop)
+### What
 * install Argo CD
-* expose via port-forward
-* deploy a single app (echo)
-* verify GitOps loop (sync, drift correction)
+* expose UI
+* deploy single echo app
 
+### Why
+* observe Git → cluster sync
+* understand drift correction
 
+### How
 1. **Install Argo CD**
    ```bash
    kubectl create ns argocd
@@ -76,11 +83,16 @@ Step-by-step GitOps lab for experimenting with Argo CD
 ---
 
 ## Stage 1 – Multi-Env (App-of-Apps)
-* add dev / staging / prod apps 
-* use app-of-apps pattern - single root app manages all
-* helm chart + values per env
-* verify selective sync per env
+### What
+* dev/staging/prod apps
+* Helm chart + values per env
+* root app manages everything
 
+### Why
+* environment separation
+* selective sync per environment
+
+### How
 1. **Create root app**
    ```bash
    kubectl apply -f 1-multi-env/apps/root-app.yaml
@@ -108,16 +120,17 @@ Step-by-step GitOps lab for experimenting with Argo CD
 ---
 
 ## Stage 2 – Sync Automation & Projects
-- **What**
-   * Applications now belong to the `apps` project
-   * The project restricts which repos can be used and which namespaces apps may deploy into (`echo-*`)
-   * All child apps inherit the same safety and automation rules
-- **Why**
-   * self-healing and pruning behave consistently across all environments
-   * accidental deploys outside `echo-*` are blocked
-   * cluster-wide resources are not allowed
-   * future RBAC becomes possible (project-scoped roles)
+### What
+* Applications belong to apps project
+* project restricts repos + namespaces (echo-*)
+* consistent automation (prune + self-heal)
 
+### Why
+* predictable sync behaviour
+* prevents accidental deployments
+* foundation for RBAC later
+
+### How
 1. **Create**
    ```bash
    kubectl apply -f 2-sync-automation/projects/apps-project.yaml
@@ -184,3 +197,163 @@ Step-by-step GitOps lab for experimenting with Argo CD
         * push
         * → Argo CD rolls back all environments to previous values
 
+- **Cleanup**
+    ```bash
+      kubectl delete appproj apps -n argocd
+      kubectl -n argocd delete app root echo-dev echo-staging echo-prod
+      kubectl delete ns echo-dev echo-staging echo-prod
+    ```
+
+
+---
+
+## Stage 3 – Kustomize vs Helm (Overlays vs Values)
+### What
+* replicate Stage 2 environment using Kustomize overlays
+* compare Kustomize overlays vs Helm values
+* apply same echo app with a Kustomize setup
+
+### Why
+* understand when to use Helm (templates) vs Kustomize (patching)
+* see strengths/weaknesses side-by-side
+* learn both dominant GitOps packaging tools
+
+Kustomize and Helm solve a similar problem (reusable k8s manifests) with different models:
+
+| Aspect       | Helm                                                       | Kustomize                                                   |
+| ------------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| Core idea    | Template engine + chart packaging                          | Patch/overlay engine, no templating                         |
+| Main files   | Chart.yaml, values*.yaml, templates/*.yaml, _helpers.tpl, NOTES.txt | kustomization.yaml, base/, overlays/, patch files           |
+| Structure    | One chart with templates rendered using `.Values`          | One base with overlays layering patches on top              |
+| Composition  | Go templates (`{{ ... }}`) with helpers in `_helpers.tpl`   | YAML patches (strategic merge / json6902) applied on base   |
+| Tooling      | `helm template/install/upgrade`, repos of packaged charts  | `kustomize build` or `kubectl kustomize` (built into kubectl) |
+| Use cases    | Apps with lots of parameters, reusable “products” (nginx, grafana) | Cluster/platform configs, env-specific tweaks, low magic    |
+| Popularity   | Very popular for app charts in ecosystem                   | Very common inside platforms, built into kubectl            |
+
+Rule of thumb:
+
+- **Helm** – “I want to generate manifests from a parameterised template.”
+- **Kustomize** – “I want to modify/overlay existing manifests for different envs.”
+
+### How
+1. **Create**
+   ```bash
+   kubectl apply -f 3-kustomize/root-app.yaml
+   ```
+   - Argo CD will detect and sync all Kustomize-based envs
+   - each env renders using its own overlay instead of Helm values
+
+2. **Verify**
+   * Argo CD UI shows three new apps (dev/staging/prod) under the Kustomize root
+   * manifests differ slightly from the Helm version (patches instead of templates)
+   * each env should show **Synced** and **Healthy**
+
+3. **Compare**
+   * **Helm**
+     - values files
+     - templating (`{{ }}`)
+     - single chart
+   * **Kustomize**
+     - base + overlays
+     - patches (json6902 / strategic merge)
+     - directory hierarchy, no templating
+
+4. **Tests**
+   * **Environment-specific patch**
+     * modify only `kustomize/overlays/staging/patch.yaml`
+     * commit + push
+       → only *staging* updates
+   * **Self-heal check**
+     ```bash
+     kubectl -n echo-dev delete deploy echo
+     ```
+     → Argo restores it using Kustomize-rendered manifests
+   * **Overlay diff check**
+     * in Argo UI → click **Diff**
+       → shows rendered YAML differences between base and overlays
+   * **Promotion (optional)**
+     * copy a patch from dev → staging → prod
+       → test manual promotion using overlays (mirrors Helm workflow)
+
+---
+
+## Stage 4 – PR & Rollback Workflow
+### What
+* use GitHub Pull Requests for all env changes
+* demonstrate promotion dev → staging → prod via PR merges
+* rollback via git revert
+* inspect diff + sync history in Argo CD
+
+### Why
+* real promotion workflow (GitFlow for manifests)
+* traceability, approvals, auditability
+* safe rollbacks with zero cluster-side commands
+
+---
+
+## Stage 5 – Access (RBAC & SSO)
+### What
+* disable default admin
+* configure OIDC (GitHub/Google/Azure)
+* add RBAC roles (argocd-rbac-cm)
+* project-level permissions
+
+### Why
+* secure the platform
+* enforce least privilege
+* allow multi-team setups
+
+---
+
+## Stage 6 – Multi-Cluster Management
+### What
+* register external clusters in Argo CD
+* deploy echo app into multiple clusters
+* root app manages all clusters
+
+### Why
+* real-world multi-cluster GitOps
+* central management from one Argo CD
+* cluster-scoped AppProjects
+
+---
+
+## Stage 7 – Observability, Drift & Notifications
+### What
+* enable Argo CD Notifications (Slack/webhooks)
+* integrate Prometheus/Grafana dashboards
+* track drift and sync events
+* read controller + repo-server logs
+
+### Why
+* operational insight
+* drift detection alerts
+* visibility into GitOps pipelines
+
+---
+
+## Stage 8 – Image Automation
+### What
+* enable Argo CD Image Updater
+* auto-bump container tags in Git
+* PR mode or direct-write mode
+* verify flow: registry → Git → Argo
+
+### Why
+* automate version bumps
+* remove manual tag updates
+* reliable hands-off workflow
+
+---
+
+## Stage 9 – Progressive Delivery
+### What
+* introduce Argo Rollouts
+* replace Deployment with Rollout
+* canary / blue-green strategies
+* optional metric-based promotion (Prometheus)
+
+### Why
+* safer deploys
+* automatic rollback on failures
+* advanced rollout patterns

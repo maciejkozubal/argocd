@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: echo-prod-kustomize
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/maciejkozubal/argocd.git
+    targetRevision: main
+    path: 3-kustomize/overlays/prod
+    kustomize: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: echo-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
