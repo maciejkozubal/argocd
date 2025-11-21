@@ -76,7 +76,7 @@ Step-by-step GitOps lab for experimenting with Argo CD
 
 - **Cleanup**
     ```bash
-    kubectl delete app echo-dev -n argocd
+    kubectl delete app echo-dev -n argocd --cascade=foreground
     kubectl delete ns echo-dev
     ```
 
@@ -113,7 +113,7 @@ Step-by-step GitOps lab for experimenting with Argo CD
    * Delete one sub-app manually → root recreates it (self-healing)
 - **Cleanup**
     ```bash
-      kubectl -n argocd delete app root echo-dev echo-staging echo-prod
+      kubectl -n argocd delete app root echo-dev echo-staging echo-prod --cascade=foreground
       kubectl delete ns echo-dev echo-staging echo-prod
     ```
 
@@ -200,7 +200,7 @@ Step-by-step GitOps lab for experimenting with Argo CD
 - **Cleanup**
     ```bash
       kubectl delete appproj apps -n argocd
-      kubectl -n argocd delete app root echo-dev echo-staging echo-prod
+      kubectl -n argocd delete app root echo-dev echo-staging echo-prod --cascade=foreground
       kubectl delete ns echo-dev echo-staging echo-prod
     ```
 
@@ -238,7 +238,8 @@ Rule of thumb:
 ### How
 1. **Create**
    ```bash
-   kubectl apply -f 3-kustomize/root-app.yaml
+   kubectl apply -f 3-kustomize/projects/apps-project.yaml -n argocd
+   kubectl apply -f 3-kustomize/root-app.yaml -n argocd
    ```
    - Argo CD will detect and sync all Kustomize-based envs
    - each env renders using its own overlay instead of Helm values
@@ -274,6 +275,13 @@ Rule of thumb:
    * **Promotion (optional)**
      * copy a patch from dev → staging → prod
        → test manual promotion using overlays (mirrors Helm workflow)
+
+- **Cleanup**
+    ```bash
+    kubectl -n argocd delete approj apps
+    kubectl -n argocd delete app echo-kustomize-root echo-dev-kustomize echo-staging-kustomize echo-prod-kustomize --cascade=foreground
+    kubectl delete ns echo-dev echo-staging echo-prod
+    ```
 
 ---
 
