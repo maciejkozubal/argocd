@@ -17,6 +17,11 @@ Step-by-step GitOps lab for experimenting with Argo CD
 ---
 
 ## Stage 0 – Base (GitOps Loop)
+* install Argo CD
+* expose via port-forward
+* deploy a single app (echo)
+* verify GitOps loop (sync, drift correction)
+
 
 1. **Install Argo CD**
    ```bash
@@ -71,8 +76,10 @@ Step-by-step GitOps lab for experimenting with Argo CD
 ---
 
 ## Stage 1 – Multi-Env (App-of-Apps)
-
-Goal – extend the base app into **dev / staging / prod** environments using the **App-of-Apps** pattern.
+* add dev / staging / prod apps 
+* use app-of-apps pattern - single root app manages all
+* helm chart + values per env
+* verify selective sync per env
 
 1. **Create root app**
    ```bash
@@ -176,3 +183,4 @@ Goal – extend the base app into **dev / staging / prod** environments using th
         * revert the last commit
         * push
         * → Argo CD rolls back all environments to previous values
+
