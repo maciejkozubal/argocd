@@ -1,2 +1,2 @@
-replicas: 1
+replicas: 2
 message: "Hello from dev!"
