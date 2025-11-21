@@ -286,68 +286,119 @@ Rule of thumb:
 ---
 
 ## Stage 4 – PR & Rollback Workflow
-
 ### What
-* use GitHub Pull Requests for all environment changes
-* promote dev → staging → prod via PR merges
-* rollback via `git revert` or Argo CD history
+* use GitHub Pull Requests for all env changes
+* demonstrate promotion dev → staging → prod via PR merges
+* rollback via git revert
+* inspect diff + sync history in Argo CD
 
 ### Why
-* PRs give review, audit trail, and traceability
-* enforce GitOps discipline (no direct pushes to `main`)
-* safe rollbacks: Git is source of truth, cluster follows
+* real promotion workflow (GitFlow for manifests)
+* traceability, approvals, auditability
+* safe rollbacks with zero cluster-side commands
 
 ### How
 1. **Apply project + root app**
+
    ```bash
    kubectl apply -f 2-sync-automation/projects/apps-project.yaml
    kubectl apply -f 4-access-and-rollbacks/root-app.yaml
    ```
-   * root app discovers dev/staging/prod automatically
 
-2. **PR workflow (dev change example)**
-   * create branch
-     ```bash
-     git checkout -b feat/bump-replicas-dev
-     ```
-   * edit dev config (e.g., `4-access-and-rollbacks/workloads/echo/values-dev.yaml` or overlay patch)
-   * commit
-     ```bash
-     git commit -m "feat(dev): bump echo-dev replicas to 2 for PR workflow test"
-     ```
-   * push
-     ```bash
-     git push -u origin feat/bump-replicas-dev
-     ```
-   * open PR
-     * GitHub UI → new PR (base=main, compare=feat/bump-replicas-dev) → request review → merge
-     * or GitHub CLI:
-       ```bash
-       gh pr create --base main --head feat/bump-replicas-dev --title "feat(dev): bump echo-dev replicas to 2" --body "Testing PR workflow"
-       gh pr review <PR-#> --approve
-       gh pr merge <PR-#>
-       ```
-   * Argo CD syncs the env after merge
+2. **Verify apps in Argo CD**
 
-3. **Promotion via PRs**
-   * dev → change + PR → merge → dev syncs
-   * staging → separate PR copying change → merge → staging syncs
-   * prod → final PR → merge → prod syncs
+   In Argo CD UI:
 
-4. **Rollback**
-   * Git revert (preferred)
+   * Settings → Projects → confirm `apps` project exists and lists your repo + `echo-*` namespaces
+   * All three env apps should become **Synced** and **Healthy**
+
+3. **Switch to PR-based changes (no direct pushes)**
+
+   From now on, for *this stage*:
+
+   * **Do not push straight to `main`**
+   * Workflow per change:
+
+     1. Create feature branch, e.g. `feat/change-echo-timeout`
+     2. Edit only one env file (e.g. `4-access-and-rollbacks/workloads/.../values-dev.yaml` *or* Kustomize overlay)
+     3. Commit to branch
+     4. Open a GitHub PR → review → merge to `main`
+     5. Argo CD sees commit on `main` and syncs automatically (or you click Sync)
+
+   This matches common GitOps guidance: **Git is the source of truth, PR is the gate, Argo CD just syncs**.
+
+4. **Promotion via PRs (dev → staging → prod)**
+
+   For an actual “release”:
+
+   1. **Dev**
+
+      * On a feature branch, change only the dev env config
+      * PR → review → merge
+      * Argo updates **dev** app
+
+   2. **Staging**
+
+      * Separate PR that copies the same change into staging config
+      * Merge → Argo updates **staging**
+
+   3. **Prod**
+
+      * Final PR updates prod config
+      * Merge → Argo updates **prod**
+
+   This gives you:
+
+   * separate review points per environment
+   * clear Git history of how a change moved dev → staging → prod
+
+5. **Rollback using Git**
+
+   When you intentionally break prod (do it 😈):
+
+   * Find the last “good” commit in Git history for `main`
+   * Run locally:
+
      ```bash
      git revert <bad-commit-sha>
      git push origin main
      ```
-     → Argo enforces the reverted state
-   * Argo history
+   * Argo CD:
+
+     * detects new commit
+     * syncs back to the reverted manifests
+     * **prod rolls back** to previous config automatically
+
+   This is the canonical GitOps rollback: you undo in Git, Argo forces the cluster back to that state.
+
+6. **Rollback using Argo’s history (cluster-side)**
+
+   Complementary to Git revert, you can test Argo’s built-in rollback:
+
+   * In Argo CD UI → `echo-prod` → **History and Rollback**
+   * Pick an earlier revision → click **Rollback**
+   * Or CLI:
+
      ```bash
      argocd app history echo-prod
-     argocd app rollback echo-prod <revision>
+     argocd app rollback echo-prod <ID>
      ```
+   * Argo reapplies the manifests from that history entry
+
+   In a “pure” GitOps setup you’d still commit a matching revert in Git, but for the lab it’s enough to see that Argo can restore older revisions on its own.
+
+7. **Small test plan for Stage 4**
+
+   * change dev via PR → merge → only dev updates
+   * promote same change via PR to staging → only staging updates
+   * introduce bad prod change via PR → see it break →
+
+     * fix with `git revert` **and**
+     * separately try Argo UI “History and Rollback”
+   * confirm Git history + Argo history tell the same story (who changed what, when)
 
 ---
+
 ## Stage 5 – Access (RBAC & SSO)
 ### What
 * disable default admin
