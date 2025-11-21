@@ -1,4 +1,4 @@
-replicas: 2
+replicas: 5
 message: "Hello from prod!"
 resources:
   requests: {cpu: "100m", memory: "128Mi"}
