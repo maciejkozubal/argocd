@@ -301,27 +301,15 @@ Rule of thumb:
 1. **Apply project + root app**
 
    ```bash
-   # ensure the project exists
    kubectl apply -f 2-sync-automation/projects/apps-project.yaml
-
-   # apply Stage 4 root app (app-of-apps for this stage)
    kubectl apply -f 4-access-and-rollbacks/root-app.yaml
    ```
-
-   * root app’s `source.path` should be `4-access-and-rollbacks/apps`
-   * `directory.recurse: true` → Argo discovers the three env apps automatically (no manual `kubectl apply` of child apps)
 
 2. **Verify apps in Argo CD**
 
    In Argo CD UI:
 
    * Settings → Projects → confirm `apps` project exists and lists your repo + `echo-*` namespaces
-   * Applications view:
-
-     * `echo-dev` (or `echo-dev-helm` / `echo-dev-kustomize`, depending on naming)
-     * `echo-staging`
-     * `echo-prod`
-     * Stage-4 root app (e.g. `echo-root-stage4`)
    * All three env apps should become **Synced** and **Healthy**
 
 3. **Switch to PR-based changes (no direct pushes)**
