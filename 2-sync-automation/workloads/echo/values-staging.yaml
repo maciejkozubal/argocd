@@ -1,2 +1,2 @@
-replicas: 2
+replicas: 3
 message: "hello from staging v3"

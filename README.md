@@ -62,9 +62,9 @@ Step-by-step GitOps lab for experimenting with Argo CD
       * UI: red ❌ → recreated → green ✅
    4. *Pause auto-sync* – toggle **Auto-Sync Off** in UI → make a change in Git → click **Sync** manually
 
-7. **Cleanup**
+- **Cleanup**
     ```bash
-      kubectl delete app echo-dev -n argocd
+    kubectl delete app echo-dev -n argocd
     kubectl delete ns echo-dev
     ```
 
@@ -92,31 +92,87 @@ Goal – extend the base app into **dev / staging / prod** environments using th
 4. **Test**
    * Change only `values-staging.yaml` → commit → Argo syncs *staging* only
    * Delete one sub-app manually → root recreates it (self-healing)
+- **Cleanup**
+    ```bash
+      kubectl -n argocd delete app root echo-dev echo-staging echo-prod
+      kubectl delete ns echo-dev echo-staging echo-prod
+    ```
 
 ---
 
 ## Stage 2 – Sync Automation & Projects
+- **What**
+   * Applications now belong to the `apps` project
+   * The project restricts which repos can be used and which namespaces apps may deploy into (`echo-*`)
+   * All child apps inherit the same safety and automation rules
+- **Why**
+   * self-healing and pruning behave consistently across all environments
+   * accidental deploys outside `echo-*` are blocked
+   * cluster-wide resources are not allowed
+   * future RBAC becomes possible (project-scoped roles)
 
-1. **Add AppProject (`apps`)**
-
-   * defines allowed repos, allowed namespaces (`echo-*`), allowed resource kinds
-   * optional RBAC role definitions for future users/teams
-
-2. **Update all apps to use the project**
-
+1. **Create**
+   ```bash
+   kubectl apply -f 2-sync-automation/projects/apps-project.yaml
+   kubectl apply -f 2-sync-automation/root-app.yaml
    ```
-   project: apps
-   ```
+   - Argo CD will discover and sync all child apps automatically
 
-   * makes every child app inherit the project’s policies
+2. **Verify**
+   * In Argo CD UI → **Settings → Projects** → project `apps` is visible
+   * Root app appears and shows three children (dev/staging/prod)
+      → All apps show **Synced** and **Healthy**
 
-3. **Root app gains extra sync options**
+3. **Tests**
+   * **Environment-specific update**
+     * modify only `values-staging.yaml`
+     * commit + push
+       → only *staging* should re-sync
+   * **Self-healing (drift correction)**
+     ```bash
+     kubectl -n echo-dev delete svc echo
+     ```
+     → Argo restores it automatically
 
-   * `CreateNamespace=true`
-   * `ApplyOutOfSyncOnly=true`
+   * **Pruning**
+     * remove a resource from the Helm chart
+     * commit + push
+       → Argo deletes it from the cluster
 
-4. **Behaviour changes**
+   * **Scaling drift**
+     ```bash
+     kubectl -n echo-prod scale deploy echo --replicas=10
+     ```
+     → Argo returns it to the declared replica count
 
-   * consistent auto-sync + prune + self-heal across all environments
-   * safety boundaries prevent deploying outside `echo-*` or from other repos
-   * no accidental cluster-wide resources
+   * **Project boundary check**
+     * change a child app’s namespace to something not matching `echo-*`
+       → Argo rejects it with a project error
+
+
+   * **Promotion Test (dev → staging → prod)**
+     * Goal – practice moving a change safely across environments using Git (the GitOps promotion workflow)
+     1. **Make a change in dev**
+         * edit a field only in: `values-dev.yaml`, e.g. change the message or replica count
+         * commit + push
+         * → Argo CD updates **echo-dev** automatically
+
+     2. **Promote to staging**
+        * copy the same change into: `values-staging.yaml` *(yes — just a simple copy/paste of the relevant lines)*
+        * commit + push
+        * → only **echo-staging** resyncs
+
+     3. **Promote to prod**
+        * copy the same change into: `values-prod.yaml`
+        * commit + push
+        * → **echo-prod** updates after staging is validated
+
+     4. **Verify in Argo CD**
+        * each environment updates only when its values file changes
+        * root app remains stable
+        * sync history shows three separate syncs (dev → staging → prod)
+
+     5. **Rollback test**
+        * revert the last commit
+        * push
+        * → Argo CD rolls back all environments to previous values
